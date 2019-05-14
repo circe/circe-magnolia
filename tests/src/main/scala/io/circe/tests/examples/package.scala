@@ -39,6 +39,7 @@ package object examples extends AllInstances with ArbitraryInstances {
 package examples {
 
   import io.circe.HCursor
+  import io.circe.magnolia.JsonVal
 
   case class Box[A](a: A)
 
@@ -204,6 +205,8 @@ package examples {
     @GeJsonKey("Renamed") @JsonKey("Renamed") origName: String,
     anotherField: String
   )
+
+  @JsonVal final case class ClassWithJsonVal(value: String)
 
   object ClassWithJsonKey {
     implicit val eq: Eq[ClassWithJsonKey] = Eq.fromUniversalEquals

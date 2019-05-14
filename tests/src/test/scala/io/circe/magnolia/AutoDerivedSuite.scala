@@ -11,6 +11,7 @@ import shapeless.tag.@@
 import shapeless.test.illTyped
 
 class AutoDerivedSuite extends CirceSuite {
+
   import AutoDerivedSuiteInputs._
 
   // TODO: All these imports are temporary workaround for https://github.com/propensive/magnolia/issues/89
@@ -31,6 +32,7 @@ class AutoDerivedSuite extends CirceSuite {
   checkLaws("Codec[RecursiveWithOptionExample]", CodecTests[RecursiveWithOptionExample].unserializableCodec)
   checkLaws("Codec[RecursiveWithListExample]", CodecTests[RecursiveWithListExample].unserializableCodec)
   checkLaws("Codec[AnyValInside]", CodecTests[AnyValInside].unserializableCodec)
+  checkLaws("Codec[AnyValWithJsonVal]", CodecTests[AnyValWithJsonValInside].unserializableCodec)
 
   "A generically derived codec" should "not interfere with base instances" in forAll { (is: List[Int]) =>
     val json = Encoder[List[Int]].apply(is)
@@ -59,6 +61,27 @@ class AutoDerivedSuite extends CirceSuite {
     val json = Json.obj("SubtypeWithExplicitInstance" -> Json.fromValues(xs.map(Json.fromString)))
 
     assert(Encoder[Sealed].apply(SubtypeWithExplicitInstance(xs): Sealed) === json)
+  }
+
+  "JsonVal" should "encode as a single unwrapped value" in forAll { (jsonVal: AnyValWithJsonValInside) =>
+    val json = Json.obj("id" -> Json.fromInt(jsonVal.id.value))
+
+    val encoded = Encoder[AnyValWithJsonValInside].apply(jsonVal)
+
+    assert(encoded === json)
+  }
+
+  "JsonVal" should "decode as a single unwrapped value to a value class" in forAll {
+    (jsonVal: AnyValWithJsonValInside) =>
+    val json = Json.obj("id" -> Json.fromInt(jsonVal.id.value))
+
+    val decoded = Decoder[AnyValWithJsonValInside].decodeJson(json)
+    assert(decoded === Right(jsonVal))
+  }
+
+  "JsonVal encoder" should "throw when the case class is a not a value class" in forAll {
+    (jsonVal: ProductWithJsonVal) =>
+      assertThrows[DerivationError](Encoder[ProductWithJsonVal].apply(jsonVal))
   }
 
   // TODO: tagged types don't work ATM, might be related to https://github.com/propensive/magnolia/issues/89

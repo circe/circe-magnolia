@@ -12,6 +12,9 @@ private[magnolia] object MagnoliaDecoder {
   private[magnolia] def combine[T](
     caseClass: CaseClass[Decoder, T]
   )(implicit configuration: Configuration): Decoder[T] = {
+    val paramJsonValLookup = caseClass.annotations.collectFirst {
+      case ann: JsonVal if caseClass.isValueClass => ann
+    }
     val paramJsonKeyLookup: Map[String, String] = caseClass.parameters.map{ p =>
       val jsonKeyAnnotation = p.annotations.collectFirst {
         case ann: JsonKey => ann
@@ -23,35 +26,51 @@ private[magnolia] object MagnoliaDecoder {
     }.toMap
 
     if (paramJsonKeyLookup.values.toList.distinct.length != caseClass.parameters.length) {
-      throw new DerivationError("Duplicate key detected after applying transformation function for case class parameters")
+      throw new DerivationError(
+        "Duplicate key detected after applying transformation function for case class parameters"
+      )
     }
 
-    if (configuration.useDefaults) {
-      new Decoder[T] {
+    paramJsonValLookup match {
+      case Some(_) => new Decoder[T] {
         override def apply(c: HCursor): Result[T] = {
           caseClass.constructMonadic { p =>
-            val key = paramJsonKeyLookup.getOrElse(p.label, throw new IllegalStateException("Looking up a parameter label should always yield a value. This is a bug"))
-            val keyCursor = c.downField(key)
-            keyCursor.focus match {
-              case Some(json) => json.as[p.PType](p.typeclass)
-              case None => p.default.fold {
-                // Some decoders (in particular, the default Option[T] decoder) do special things when a key is missing,
-                // so we give them a chance to do their thing here.
-                p.typeclass.tryDecode(keyCursor)
-              }(Right(_))
+            p.typeclass.tryDecode(c)
+          }
+        }
+      }
+      case None =>
+        if (configuration.useDefaults) {
+          new Decoder[T] {
+            override def apply(c: HCursor): Result[T] = {
+              caseClass.constructMonadic { p =>
+                val key = paramJsonKeyLookup.getOrElse(p.label,
+                  throw new IllegalStateException(
+                    "Looking up a parameter label should always yield a value. This is a bug")
+                )
+                val keyCursor = c.downField(key)
+                keyCursor.focus match {
+                  case Some(json) => json.as[p.PType](p.typeclass)
+                  case None => p.default.fold {
+                    // Some decoders (in particular,
+                    // the default Option[T] decoder) do special things when a key is missing,
+                    // so we give them a chance to do their thing here.
+                    p.typeclass.tryDecode(keyCursor)
+                  }(Right(_))
+                }
+              }
             }
           }
         }
-      }
-    }
-    else {
-      new Decoder[T] {
-        def apply(c: HCursor): Result[T] = {
-          caseClass.constructMonadic { p => 
-            p.typeclass.tryDecode(c.downField(paramJsonKeyLookup.getOrElse(p.label, throw new IllegalStateException("Looking up a parameter label should always yield a value. This is a bug"))))
+        else {
+          new Decoder[T] {
+            def apply(c: HCursor): Result[T] = {
+              caseClass.constructMonadic { p =>
+                p.typeclass.tryDecode(c.downField(paramJsonKeyLookup.getOrElse(p.label, throw new IllegalStateException("Looking up a parameter label should always yield a value. This is a bug"))))
+              }
+            }
           }
         }
-      }
     }
   }
 

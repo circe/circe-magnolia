@@ -7,6 +7,9 @@ import magnolia._
 private[magnolia] object MagnoliaEncoder {
 
   private[magnolia] def combine[T](caseClass: CaseClass[Encoder, T])(implicit config: Configuration): Encoder[T] = {
+    val paramJsonValLookup = caseClass.annotations.collectFirst {
+      case ann: JsonVal => ann
+    }
     val paramJsonKeyLookup = caseClass.parameters.map { p =>
       val jsonKeyAnnotation = p.annotations.collectFirst {
         case ann: JsonKey => ann
@@ -17,19 +20,36 @@ private[magnolia] object MagnoliaEncoder {
       }
     }.toMap
 
+    if (paramJsonValLookup.isDefined && !caseClass.isValueClass) {
+      throw new DerivationError(
+        "JsonVal is only supported on value classes"
+      )
+    }
+
     if (paramJsonKeyLookup.values.toList.distinct.size != caseClass.parameters.length) {
       throw new DerivationError(
         "Duplicate key detected after applying transformation function for case class parameters"
       )
     }
 
-    new Encoder[T] {
-      def apply(a: T): Json =
-        Json.obj(caseClass.parameters.map { p =>
-          val label = paramJsonKeyLookup.getOrElse(p.label, throw new IllegalStateException("Looking up a parameter label should always yield a value. This is a bug"))
-          label -> p.typeclass(p.dereference(a))
-        }: _*)
+    paramJsonValLookup match {
+      case Some(_) => new Encoder[T] {
+        def apply(a: T): Json = {
+          val p = caseClass.parameters.head
+          p.typeclass(p.dereference(a))
+        }
+      }
+      case None => new Encoder[T] {
+        def apply(a: T): Json =
+          Json.obj(caseClass.parameters.map { p =>
+            val label = paramJsonKeyLookup.getOrElse(p.label,
+              throw new IllegalStateException(
+                "Looking up a parameter label should always yield a value. This is a bug"))
+            label -> p.typeclass(p.dereference(a))
+          }: _*)
+      }
     }
+
   }
 
   private[magnolia] def dispatch[T](
