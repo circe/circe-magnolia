@@ -12,7 +12,7 @@ lazy val circeVersion = "0.13.0"
 lazy val circeGenericExtrasVersion = "0.13.0"
 lazy val shapelessVersion = "2.3.3"
 lazy val scalatestVersion = "3.2.2"
-lazy val scalacheckVersion = "1.14.3"
+lazy val scalacheckVersion = "1.15.4"
 
 lazy val compilerSettings = Seq(
   scalacOptions ++= Seq(
