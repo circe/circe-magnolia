@@ -8,8 +8,8 @@ lazy val buildSettings = Seq(
 )
 
 lazy val magnoliaVersion = "0.17.0"
-lazy val circeVersion = "0.13.0"
-lazy val circeGenericExtrasVersion = "0.13.0"
+lazy val circeVersion = "0.14.0"
+lazy val circeGenericExtrasVersion = "0.14.0"
 lazy val shapelessVersion = "2.3.3"
 lazy val scalatestVersion = "3.2.2"
 lazy val scalacheckVersion = "1.14.3"
